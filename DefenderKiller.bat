@@ -11,6 +11,7 @@
 
 :Start
 	@echo off
+	cls
 	Title DK
 	Color 0f
 	chcp 866 >nul	
@@ -31,8 +32,8 @@ rem Установка переменных
 	set "DefenderKey=HKLM\Software\Policies\Microsoft\Windows Defender"
 
 rem Версия и дата программы / Размеры. Первое число - ширина, второе - высота
-	set Version=12.4.1
-	set DateProgram=22.08.24
+	set Version=12.5
+	set DateProgram=27.08.24
 	Mode 80,46
 	nircmd win center process cmd.exe & nircmd win settext foreground "DK | v. %Version% | %DateProgram% | By Vlado"
 	
@@ -112,13 +113,13 @@ rem Путь к папке задач планировщика
 	
 	set "input="
 	set /p input=
-	if not defined input  cls && goto Start
+	if not defined input   goto Start
 	if "%input%"=="1"  cls && goto DeleteDefender
 	if "%input%"=="2"  cls && goto Catalogs
 	if "%input%"=="3"  cls && goto CheckUpdate
 	if "%input%"=="4"  cls && goto ManageDefender
 	cls & %ch%    {0c}Такой функции не существует{\n #}
-	timeout /t 2 >nul && cls && goto Start
+	timeout /t 2 >nul && goto Start
 
 :DeleteDefender
 rem Проверка разрядности
@@ -389,43 +390,76 @@ rem Удаляем Unlocker, его драйвер и остальные файлы. Драйвер восстановится сам, 
 			reg query "HKLM\System\CurrentControlset\Services\WinDefend" >nul 2>&1 && %ch%    {04} Все службы Защитника не удалены.{\n #}{08}    Повторите удаление после перезагрузки ПК.{\n #}{\n #}
 			%ch%    {0e} Если хотите удалить Безопасность из пуска, сделать это можно в пункте 4.{\n #}
 			%ch%    {08} Нажмите любую клавишу для возврата в главное меню.{\n #}
-			pause>nul && cls && goto Start
+			pause>nul && goto Start
 		)
 	)
 	
 	echo.
 	nhmb "Защитник Windows не удалён.\nЕсли появляется это сообщение несколько раз, выполните перезагрузку компьютера и повторите попытку удаления.\n\nПовторить удаление защитника?\n" "DK" "Information|YesNo"
-	if errorlevel 7 cls && goto Start
+	if errorlevel 7 goto Start
 	if errorlevel 6 cls && set "AlreadyInExclusion=Yes" && goto DeleteDefender
 			
 rem ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 :ManageDefender
+	cls
+	2>nul reg query "HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v "SettingsPageVisibility" | find /i "windowsdefender" >nul 2>&1 && set "HideSettigns={0a}скрыта" || set "HideSettigns={0c}отображается"
+
 	%ch% {\n #}{08} 1{#} - Восстановить защитник из копии{\n #}
 	%ch% {08} 2 - Применить/Откатить групповые политики{\n #}
-	%ch% {08} 3 - {03}Удалить приложение Безопасность [значок в пуске] [с подтверждением]{\n #}
+	%ch% {08} 3 - {0b}Удалить приложение Безопасность с подтверждением {08}[значок в пуске]{\n #}
+	%ch% {08} 4 - Страница Безопасность в параметрах %HideSettigns%{\n #}
 	echo.
 	%ch% {0e} [Enter]{#} - {08}Вернуться в главное меню{\n #}
 	set "input="
 	set /p input=
-	if not defined input	  cls && goto Start
-	if "%input%"=="1"    goto RestoreDefender
-	if "%input%"=="2"    goto GroupPolicyWD
-	if "%input%"=="3"    goto SecHealthUI
-	cls && goto ManageDefender
+	if not defined input	  goto Start
+	if "%input%"=="1"  goto RestoreDefender
+	if "%input%"=="2"  goto GroupPolicyWD
+	if "%input%"=="3"  goto SecHealthUI
+	if "%input%"=="4"  call :HideShowInSettings
+	goto ManageDefender
+
+:HideShowInSettings
+	set "Settings="
+	set "NewSettings="
+	
+	for /f "skip=2 tokens=3" %%i in ('reg query "HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v SettingsPageVisibility 2^>nul') do set "Settings=%%i"
+	if not defined Settings (
+		reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v SettingsPageVisibility /t REG_SZ /d "hide:windowsdefender" /f
+		exit /b
+	) else (
+
+rem Если скрыт только защитник - удаляем параметр
+		if "!Settings!" equ "hide:windowsdefender" (
+		reg delete "HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v SettingsPageVisibility /f >nul
+		exit /b)
+	
+rem Если переменная содержит defender, то удаляем запись windowsdefender, сохраняя остальные страницы
+		echo !Settings! | find "defender" >nul && (
+		set "Settings=!Settings:;windowsdefender=!"
+		reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v SettingsPageVisibility /t REG_SZ /d "!Settings!" /f >nul
+		exit /b)
+
+rem Скрываем страницу из параметров
+		set "NewSettings=!Settings!"
+		if "!Settings:~-1!"==";" (set "NewSettings=!Settings!windowsdefender") else (set "NewSettings=!Settings!;windowsdefender")
+		reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v SettingsPageVisibility /t REG_SZ /d "!NewSettings!" /f >nul
+	)
+	exit /b
 
 :GroupPolicyWD
-	if not exist "%SystemRoot%\System32\gpedit.msc" %ch%  {04} Не Найдено ГП, у Вас HOME версия, либо какая-то сборка.{\n #}&&timeout /t 3 >nul && cls && goto ManageDefender
+	if not exist "%SystemRoot%\System32\gpedit.msc" %ch%  {04} Не Найдено ГП, у Вас HOME версия, либо какая-то сборка.{\n #}&&timeout /t 3 >nul && goto ManageDefender
 	%ch% {\n #}{0f} 1{#} - {0f}Применить групповые политики защитника{\n #}
 	%ch% {0f} 2{#} - {0f}Откатить групповые политики защитника{\n #}
 	%ch% {0f} 3{#} - {08}Отменить выбор{\n #}
 	
 	set "input="
 	set /p input=
-	if not defined input  cls && goto ManageDefender
+	if not defined input   goto ManageDefender
 	if "%input%"=="1"  call :ApplyGP & timeout /t 1 /nobreak >nul & call :ApplyGP
 	if "%input%"=="2"  call :RestoreGP & timeout /t 1 /nobreak >nul & call :RestoreGP
-	if "%input%"=="3"  cls && goto ManageDefender
-	cls && goto ManageDefender
+	if "%input%"=="3"  goto ManageDefender
+	goto ManageDefender
 	
 :ApplyGP
 	call :LGPOFILE reg add "%DefenderKey%" /v "ServiceKeepAlive" /t REG_DWORD /d "0" /f
@@ -500,19 +534,19 @@ rem Восстановление политик
 	set "CurrentBuild="
 	for /f "tokens=2*" %%a in ('reg query "HKLM\Software\Microsoft\Windows NT\CurrentVersion" /v "CurrentBuild" 2^>nul') do set CurrentBuild=%%b
 	set /a CurrentBuild=%CurrentBuild%
-	if %CurrentBuild% lss 10240 %ch%    {04} Не требуется на данной версии Windows{\n #}&& timeout /t 2 /nobreak >nul && cls &&  goto ManageDefender
+	if %CurrentBuild% lss 10240 %ch%    {04} Не требуется на данной версии Windows{\n #}&& timeout /t 2 /nobreak >nul && goto ManageDefender
 	
 rem Получаем SID
 	set "SID="
 	for /f "tokens=3 delims= " %%a in ('reg query "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" /v "AutoLogonSID" 2^>nul') do set "SID=%%a"
 	if not defined SID for /f "tokens=3 delims= " %%a in ('reg query "HKLM\Software\Microsoft\Windows\CurrentVersion\Authentication\LogonUI" /v "LastLoggedOnUserSID" 2^>nul') do set "SID=%%a"
-	if not defined SID %ch%    {04} SID не был получен, отмена удаления приложений{\n #}&& timeout /t 2 /nobreak >nul && cls && goto ManageDefender
+	if not defined SID %ch%    {04} SID не был получен, отмена удаления приложений{\n #}&& timeout /t 2 /nobreak >nul && goto ManageDefender
 	
 	%ch% {\n} После удаления приложения зайти в настройки защитника будет {04}невозможно.{\n #}
 	%ch% {08} 1.{#} {0c}Удалить приложения{\n #}
 	%ch% {08} 2.{#} {08}Отмена{\n #}
 	choice /c 12 /n /m " "
-	if errorlevel 2 cls && goto ManageDefender
+	if errorlevel 2 goto ManageDefender
 	
 rem Получаем имя SystemApp Безопасность Windows [SecHealthUI] - Оснастка для управления антивирусной программой Windows Defender
 	%ch% {\n #}   {03} Удаляем Безопасность Windows{\n #}
@@ -535,7 +569,7 @@ rem Получаем имя SystemApp AppRep [SmartScreen]
 	%ch%    {03} Удаляем SmartScreen защитника Windows{\n #}
 	set "NameAppRep="
 	for /F "usebackq delims=" %%n In (`2^>nul reg query "HKU\%SID%\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages" /f "*Apprep.ChxApp*" /k^|findstr ^H`) do set NameAppRep=%%~nxn
-	if not defined NameAppRep %ch%    {02} Приложение SmartScreen защитника Windows удалено{\n #}&& echo. && pause && cls && goto ManageDefender
+	if not defined NameAppRep %ch%    {02} Приложение SmartScreen защитника Windows удалено{\n #}&& echo. && pause && goto ManageDefender
 
 	%ch% {08} %NameAppRep%{\n #}
 	reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\EndOfLife\S-1-5-18\%NameAppRep%" /f >nul
@@ -547,7 +581,7 @@ rem Эти папки можно удалять, восстанавливаются сами, если восстановить приложени
 	For /F "usebackq delims=" %%d In (`2^>nul Dir "%ProgramData%\Microsoft\Windows\AppRepository\Packages\*Apprep.ChxApp*" /S /B /A:D`) do rd /s /q "%%d"
 	For /F "usebackq delims=" %%d In (`2^>nul Dir "%LocalAppData%\Packages\*Apprep.ChxApp*" /S /B /A:D`) do rd /s /q "%%d"
 	
-	pause && cls && goto ManageDefender
+	pause && goto ManageDefender
 
 rem ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 :AddExclusion
@@ -605,7 +639,7 @@ rem Проверка наличия curl в папке Work или в папке System32 для проверки обновле
 	pause && exit))
 	
 rem Проверяем наличие интернета и обновляем программу
-	ping pastebin.com -n 1 -w 1000 |>nul find /i "TTL="|| cls && %ch% {04} Ошибка проверки, нет интернет-соединения.{\n #}&&timeout /t 3 >nul && cls && goto Start
+	ping pastebin.com -n 1 -w 1000 |>nul find /i "TTL="|| cls && %ch% {04} Ошибка проверки, нет интернет-соединения.{\n #}&&timeout /t 3 >nul && goto Start
 	
 	curl -g -k -L -# -o "%SystemDrive%\latestVersion.bat" "https://pastebin.com/raw/dnENFgmC" >nul 2>&1
 	call "%SystemDrive%\latestVersion.bat"
@@ -760,7 +794,7 @@ rem Функция проверки после копирования главной папки, есть ли в ней файлы или па
 		%ch% {08} Для возврата в главное меню нажмите любую клавишу{\n #}
 		pause
 		rd /s /q "%SystemDrive%\WDefenderBackup" >nul 2>&1
-		cls && goto Start
+		goto Start
 	)
 
 :RestoreDefender
@@ -772,9 +806,9 @@ rem Выбор папки и проверка выбранной папки на корректность резервной копии
 	set "BackupFolder="
 	for /f %%a in ('powershell -c "(New-Object -COM 'Shell.Application').BrowseForFolder(0, 'Выберите папку WDefenderBackup с ранее созданной резервной копией Windows Defender. После выбора папки будет задан вопрос о восстановлении защитника.', 0, 0).Self.Path"') do set "BackupFolder=%%a"
 	echo.
-	if not defined BackupFolder cls && goto ManageDefender
-	if not exist "%BackupFolder%\Folder" %ch%    {04} Неверная резервная копия. Выберите правильную резервную копию.{\n #}&&timeout /t 3 >nul && cls && goto ManageDefender
-	if not exist "%BackupFolder%\ServicesDrivers" %ch%    {04} Неверная резервная копия. Выберите правильную резервную копию.{\n #}&&timeout /t 3 >nul && cls && goto ManageDefender
+	if not defined BackupFolder goto ManageDefender
+	if not exist "%BackupFolder%\Folder" %ch%    {04} Неверная резервная копия. Выберите правильную резервную копию.{\n #}&&timeout /t 3 >nul && goto ManageDefender
+	if not exist "%BackupFolder%\ServicesDrivers" %ch%    {04} Неверная резервная копия. Выберите правильную резервную копию.{\n #}&&timeout /t 3 >nul && goto ManageDefender
 	
 	%ch% {03} Восстановление защитника{\n #}{\n #}
 	pushd "%BackupFolder%"
@@ -823,7 +857,7 @@ rem Восстановление параметров реестра, удаление лишних ключей
 	timeout /t 1 /nobreak >nul
 	call :RestoreGP
 	nhmb "Требуется перезапуск ПК" "DK" "Information|Ok"
-	cls && goto Start
+	goto Start
 
 :Catalogs
 	%ch% {03}Основные 2 папки{\n #}
@@ -878,4 +912,4 @@ rem Восстановление параметров реестра, удаление лишних ключей
 	if not exist "%SystemRoot%\System32\SecurityHealthSsoUdk.dll"  (%ch% {02} SecurityHealthSsoUdk.dll{\n #}) else (%ch% {0c} SecurityHealthSsoUdk.dll{\n #})
 	if not exist "%SystemRoot%\System32\SecurityHealthUdk.dll" (%ch% {02} SecurityHealthUdk.dll{\n #}) else (%ch% {0c} SecurityHealthUdk.dll{\n #})
 	if not exist "%SystemRoot%\System32\SecurityHealthAgent.dll"  (%ch% {02} SecurityHealthAgent.dll{\n #}) else (%ch% {0c} SecurityHealthAgent.dll{\n #})
-	pause>nul && cls && goto Start
+	pause>nul && goto Start
