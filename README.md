@@ -1,6 +1,6 @@
 ## DefenderKiller - программа для удаления Windows Defender.
 
-<a href="https://discord.gg/mGvm4pMc79">
+<a href="https://discord.gg/X5VBmJB3aE">
   <image src="https://i.imgur.com/7qKqP8r.png" width="10%"/>
   <div>Discord-сервер</div>
 </a>
