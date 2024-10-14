@@ -1,4 +1,4 @@
-#### Скачать полный архив [тут](https://disk.yandex.ru/d/G_IcVLrpDm6bLA)
+#### FullArchive [тут](https://disk.yandex.ru/d/G_IcVLrpDm6bLA)
 
 [Discord](https://discord.gg/X5VBmJB3aE)
 
